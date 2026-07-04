@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ds-watch"
+version = "0.1.0"
+description = "DS record observatory over ICANN CZDS zone files (DNSSEC transparency)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Felix Mertins", email = "felix@mertins.dev" }]
+dependencies = ["requests>=2.31"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+ds-watch = "ds_watch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

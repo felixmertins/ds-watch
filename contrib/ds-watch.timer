@@ -1,0 +1,12 @@
+[Unit]
+Description=ds-watch täglich nach dem CZDS-Regenerationsfenster (00:00–06:00 UTC)
+
+[Timer]
+OnCalendar=*-*-* 06:30:00 UTC
+RandomizedDelaySec=15m
+# Verpasste Läufe (Laptop aus/suspendiert) beim nächsten Boot nachholen;
+# der HEAD-/24-h-Guard im Client verhindert Doppel-Downloads.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

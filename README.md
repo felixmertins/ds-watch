@@ -1,0 +1,125 @@
+# ds-watch
+
+DS-Record-Observatory über ICANN-CZDS-Zonefiles — Baustein des
+DNSSEC-Transparency-Projekts („CT für DNSSEC"). Beobachtet täglich die
+DS-Records ganzer gTLD-Zonen und protokolliert jede Änderung pro Delegation
+als append-only Event-Log: `ds_added` (DNSSEC-Bootstrap), `ds_removed`
+(Delegation geht insecure — das sicherheitsrelevanteste Signal) und
+`ds_changed` (KSK-/Algorithmus-Rollover oder stiller Schlüsseltausch).
+
+## Funktionsweise
+
+Täglicher Lauf pro TLD: **fetch** (CZDS-Download, nur wenn die Zone sich laut
+`Last-Modified` geändert hat) → **extract** (Streaming über das gzip, DS-RRs
+normalisieren, sortierter Snapshot) → **diff** (Merge-Diff gegen den Vortag,
+RRset-Vergleich pro Delegation) → **publish** (Event-JSONL + Tages-Aggregat
+mit SHA-256-Kette zum Vortag, Git-Commit) → **rotate**.
+
+Ein Sanity-Gate quarantänisiert Läufe mit verdächtigem DS-Einbruch
+(klassischer Fehlermodus: abgeschnittener Download), statt Massen-
+`ds_removed`-Events zu erzeugen.
+
+## CZDS-Nutzungsbedingungen (wichtig)
+
+Dieses Tool ist so gebaut, dass es die CZDS Terms of Use (v1.00) einhält:
+
+- **§1.8**: höchstens ein Download pro Zone pro 24 h — erzwungen per
+  `Last-Modified`-Vergleich und Mindestabstand (`min_fetch_interval_hours`).
+- **§1.4**: Roh-Zonefiles werden direkt nach der Extraktion gelöscht.
+- **§1.6**: Es werden ausschließlich abgeleitete Diffs und Aggregate
+  abgelegt/committet („value-added"), nie volle Snapshots oder Roh-Zonendaten.
+  Die Voll-Snapshots unter `state/` sind gitignored und bleiben lokal.
+  **Vor einer Veröffentlichung des Event-Logs**: Empfängern ist die Nutzung
+  entgegen ToU §1.1 zu untersagen (Hinweis gehört dann prominent hierher).
+
+HTTP 403 (Grant abgelaufen — Grants laufen nach ≥3 Monaten aus!) und
+HTTP 409 (neue ToU im Portal zu akzeptieren) beenden den Lauf mit
+Exit-Code 2 und brauchen manuelle Aktion auf <https://czds.icann.org>.
+
+## Setup
+
+```sh
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+cp config.example.toml config.toml   # TLDs/Watchlist anpassen
+
+# CZDS-Zugangsdaten (Portal-Login) hinterlegen:
+mkdir -p ~/.config/ds-watch
+cat > ~/.config/ds-watch/credentials <<'EOF'
+username = "deine-czds-mailadresse"
+password = "dein-czds-passwort"
+EOF
+chmod 600 ~/.config/ds-watch/credentials
+```
+
+## Nutzung
+
+```sh
+.venv/bin/ds-watch run                 # voller Tageslauf über alle TLDs aus config.toml
+.venv/bin/ds-watch run --tld dev       # nur eine Zone
+.venv/bin/ds-watch fetch --tld dev     # nur herunterladen
+.venv/bin/ds-watch extract --tld dev   # DS-State aus geladener Zone bauen (Debug)
+.venv/bin/ds-watch diff --tld dev      # Dry-Run-Diff auf stdout, ohne zu publizieren
+.venv/bin/ds-watch status              # Stand pro TLD
+```
+
+Exit-Codes: `0` OK · `1` Fehler · `2` braucht Aufmerksamkeit
+(Quarantäne, Grant abgelaufen, neue ToU).
+
+### Täglicher Betrieb (systemd user timer)
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp contrib/ds-watch.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now ds-watch.timer
+systemctl --user list-timers ds-watch.timer   # Kontrolle
+```
+
+Der Timer feuert 06:30 UTC (nach dem CZDS-Regenerationsfenster 00:00–06:00 UTC)
+mit `Persistent=true` — verpasste Läufe werden nachgeholt, der Guard im Client
+verhindert Doppel-Downloads.
+
+### Signierte Commits
+
+`git.sign = "auto"` signiert, sobald ein Signing-Key konfiguriert ist,
+z. B. SSH-Signing:
+
+```sh
+git config gpg.format ssh
+git config user.signingkey ~/.ssh/id_ed25519.pub
+```
+
+## Datenlayout
+
+```
+events/<tld>/<jahr>/<datum>.jsonl   # ein Event pro geänderter Delegation (nur an Tagen mit Änderungen)
+stats/<tld>/<datum>.json            # Tages-Aggregat, per SHA-256 mit dem Vortag verkettet
+state/                              # lokal (gitignored): aktueller Snapshot, Quarantäne, Token-Cache
+```
+
+Event-Beispiel:
+
+```json
+{"v":1,"date":"2026-07-05","tld":"org","domain":"example.org","event":"ds_changed",
+ "before":[{"key_tag":12345,"algorithm":8,"digest_type":2,"digest":"ab…"}],
+ "after":[{"key_tag":54321,"algorithm":13,"digest_type":2,"digest":"cd…"}],
+ "gap_days":1,"source":"czds","run_id":"2026-07-05T06:31Z"}
+```
+
+## Tests
+
+```sh
+.venv/bin/python -m pytest
+```
+
+## Status / Roadmap
+
+Phase-1-MVP (lokaler Betrieb). Später: VPS-Betrieb, E-Mail-Alerting für die
+Watchlist, echtes Merkle-Log (Sigsum), Veröffentlichung — vorher README und
+Kommentare auf Englisch umstellen und den ToU-§1.6-Hinweis für Nachnutzer
+ergänzen. Kontext: `../NEXT-STEPS.md`.
+
+## Lizenz
+
+Apache-2.0

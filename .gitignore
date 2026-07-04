@@ -1,0 +1,11 @@
+# Lokaler State: enthält aus CZDS-Zonefiles abgeleitete Voll-Snapshots und
+# temporäre Roh-Zonen — darf NIE veröffentlicht werden (CZDS ToU §1.4/§1.6)
+state/
+
+# Lokale Konfiguration (config.example.toml ist die committete Vorlage)
+config.toml
+
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/

@@ -1,0 +1,39 @@
+# ds-watch Konfiguration.
+# Kopieren nach config.toml und anpassen; config.toml ist gitignored.
+
+# Zonen, für die CZDS-Zugriff genehmigt ist (Reihenfolge = Verarbeitungsreihenfolge)
+tlds = ["dev", "info", "org"]
+
+[czds]
+# TOML-Datei mit `username = "..."` und `password = "..."` (chmod 600)
+credentials_file = "~/.config/ds-watch/credentials"
+auth_url = "https://account-api.icann.org/api/authenticate"
+api_base = "https://czds-api.icann.org"
+# User-Agent ist bei der CZDS-API Pflicht — Kontakt drinlassen
+user_agent = "ds-watch/0.1 (DNSSEC DS observatory; contact: felix@mertins.dev)"
+# ToU §1.8: max. ein Download pro Zone pro 24 h. Mindestabstand in Stunden,
+# unterschreitbar nur mit --force.
+min_fetch_interval_hours = 20
+
+[paths]
+# relativ zum Repo-Root oder absolut
+state_dir = "state"
+events_dir = "events"
+stats_dir = "stats"
+
+[sanity]
+# Lauf quarantänisieren, wenn die DS-Zeilenzahl unter min_ratio * Vortag fällt
+# (klassischer Fehlermodus: abgeschnittener Download → Massen-ds_removed)
+min_ratio = 0.7
+# Quarantäne, wenn die Zone insgesamt verdächtig klein ist
+min_zone_lines = 10000
+
+[git]
+# Events/Stats nach jedem Lauf committen
+commit = true
+# "auto" = signieren, wenn git user.signingkey konfiguriert ist; sonst true/false
+sign = "auto"
+
+[watchlist]
+# Delegationen, deren DS-Änderungen prominent gemeldet werden
+domains = ["mertins.dev"]
