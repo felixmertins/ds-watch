@@ -19,6 +19,28 @@ Ein Sanity-Gate quarantänisiert Läufe mit verdächtigem DS-Einbruch
 (klassischer Fehlermodus: abgeschnittener Download), statt Massen-
 `ds_removed`-Events zu erzeugen.
 
+## RRSIG-Evidenz (v0.2)
+
+Jedes Event trägt registry-signierte Beweise statt bloßer Behauptungen: Die
+`RRSIG(DS)`-Records, mit denen die Elternzone ihr DS-RRset signiert, werden
+pro Delegation mitarchiviert (`rrsig_before`/`rrsig_after` im Event), dazu
+täglich das Apex-DNSKEY-RRset samt `RRSIG(DNSKEY)` für die Langzeit-
+Verifikation (`events/<tld>/dnskey/<datum>.json`). Die Verifikationskette
+läuft bis zum Root-Trust-Anchor — prüfbar z. B. mit dnspython oder `delv`.
+
+Grenzen (bewusst): Die RRSIG beweist Existenz im Gültigkeitsfenster, die
+Tagesgenauigkeit bleibt Beobachtung; für `ds_removed` gibt es (noch) keinen
+Abwesenheits-Beweis — NSEC3-Denial-Proofs mit Opt-out sind Future Work.
+Events aus v0.1-States (Baselines) haben noch kein `rrsig_before`.
+
+## Alerting (v0.2)
+
+`[alert]` in der config.toml: E-Mail bei Watchlist-Treffern und — sofern
+`on_attention = true` — bei Quarantäne, Grant-Ablauf (403) und neuen ToU
+(409). Versand per SMTP (Default localhost:25; auf dem VPS reicht ein
+lokaler MTA oder msmtp). `to` leer lassen = aus. Versandfehler brechen den
+Lauf nie ab, die Log-Warnung bleibt maßgeblich.
+
 ## CZDS-Nutzungsbedingungen (wichtig)
 
 Dieses Tool ist so gebaut, dass es die CZDS Terms of Use (v1.00) einhält:
@@ -94,8 +116,9 @@ git config user.signingkey ~/.ssh/id_ed25519.pub
 
 ```
 events/<tld>/<jahr>/<datum>.jsonl   # ein Event pro geänderter Delegation (nur an Tagen mit Änderungen)
+events/<tld>/dnskey/<datum>.json    # Tages-DNSKEY-Paket der Elternzone (für RRSIG-Verifikation)
 stats/<tld>/<datum>.json            # Tages-Aggregat, per SHA-256 mit dem Vortag verkettet
-state/                              # lokal (gitignored): aktueller Snapshot, Quarantäne, Token-Cache
+state/                              # lokal (gitignored): Snapshot + RRSIG-Proofs, Quarantäne, Token-Cache
 ```
 
 Event-Beispiel:
@@ -104,6 +127,8 @@ Event-Beispiel:
 {"v":1,"date":"2026-07-05","tld":"org","domain":"example.org","event":"ds_changed",
  "before":[{"key_tag":12345,"algorithm":8,"digest_type":2,"digest":"ab…"}],
  "after":[{"key_tag":54321,"algorithm":13,"digest_type":2,"digest":"cd…"}],
+ "rrsig_before":["ds 8 2 86400 20260712… 20260628… 4217 org. K7c…"],
+ "rrsig_after":["ds 8 2 86400 20260719… 20260705… 4217 org. Kkm…"],
  "gap_days":1,"source":"czds","run_id":"2026-07-05T06:31Z"}
 ```
 

@@ -31,8 +31,11 @@ def _rdata_json(rr: Rdata) -> dict:
     }
 
 
-def event_json(e: Event, *, date: str, tld: str, gap_days: int, run_id: str) -> dict:
-    return {
+def event_json(
+    e: Event, *, date: str, tld: str, gap_days: int, run_id: str,
+    rrsig_before: list[str] | None = None, rrsig_after: list[str] | None = None,
+) -> dict:
+    out = {
         "v": SCHEMA_VERSION,
         "date": date,
         "tld": tld,
@@ -44,6 +47,13 @@ def event_json(e: Event, *, date: str, tld: str, gap_days: int, run_id: str) -> 
         "source": "czds",
         "run_id": run_id,
     }
+    # RRSIG-Evidenz (v0.2): von der Registry signierte Belege für das RRset —
+    # optional, weil Alt-States (v0.1) noch keine Proofs tragen
+    if rrsig_before:
+        out["rrsig_before"] = rrsig_before
+    if rrsig_after:
+        out["rrsig_after"] = rrsig_after
+    return out
 
 
 def write_events(
@@ -60,6 +70,31 @@ def write_events(
     with tmp.open("w", encoding="ascii") as f:
         for e in events:
             f.write(json.dumps(e, sort_keys=True) + "\n")
+    tmp.replace(path)
+    return path
+
+
+def write_dnskey(events_dir: Path, tld: str, date: str,
+                 dnskey_rrset: list[str], dnskey_rrsigs: list[str],
+                 soa_serial: str | None) -> Path | None:
+    """Tages-DNSKEY-Paket der Elternzone für die Langzeit-Verifikation der RRSIGs.
+
+    Wenige KB pro Tag; ohne den damaligen DNSKEY ließe sich eine alte RRSIG(DS)
+    später nicht mehr prüfen.
+    """
+    if not dnskey_rrset:
+        return None
+    path = events_dir / tld / "dnskey" / f"{date}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".part")
+    tmp.write_text(json.dumps({
+        "v": SCHEMA_VERSION,
+        "tld": tld,
+        "date": date,
+        "soa_serial": soa_serial,
+        "dnskey": dnskey_rrset,
+        "rrsig": dnskey_rrsigs,
+    }, indent=2, sort_keys=True) + "\n")
     tmp.replace(path)
     return path
 

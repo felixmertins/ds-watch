@@ -12,6 +12,21 @@ class ConfigError(Exception):
 
 
 @dataclass(frozen=True)
+class AlertConfig:
+    to: str  # leer = Alerting aus
+    sender: str
+    smtp_host: str
+    smtp_port: int
+    starttls: bool
+    credentials_file: Path | None  # optional: TOML mit smtp_user/smtp_password
+    on_attention: bool  # auch bei Quarantäne/403/409 mailen
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.to)
+
+
+@dataclass(frozen=True)
 class Config:
     root: Path  # Verzeichnis der config.toml = Repo-Root
     tlds: list[str]
@@ -28,6 +43,7 @@ class Config:
     git_commit: bool
     git_sign: str | bool
     watchlist: frozenset[str]
+    alert: AlertConfig
 
 
 def _resolve(root: Path, value: str) -> Path:
@@ -50,6 +66,7 @@ def load_config(path: Path) -> Config:
     sanity = raw.get("sanity", {})
     git = raw.get("git", {})
     watchlist = raw.get("watchlist", {})
+    alert = raw.get("alert", {})
 
     tlds = [t.strip(".").lower() for t in raw.get("tlds", [])]
     if not tlds:
@@ -73,6 +90,18 @@ def load_config(path: Path) -> Config:
         git_commit=bool(git.get("commit", True)),
         git_sign=git.get("sign", "auto"),
         watchlist=frozenset(d.strip(".").lower() for d in watchlist.get("domains", [])),
+        alert=AlertConfig(
+            to=alert.get("to", ""),
+            sender=alert.get("from", "ds-watch@localhost"),
+            smtp_host=alert.get("smtp_host", "localhost"),
+            smtp_port=int(alert.get("smtp_port", 25)),
+            starttls=bool(alert.get("starttls", False)),
+            credentials_file=(
+                Path(alert["credentials_file"]).expanduser()
+                if alert.get("credentials_file") else None
+            ),
+            on_attention=bool(alert.get("on_attention", True)),
+        ),
     )
 
 

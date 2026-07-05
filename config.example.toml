@@ -37,3 +37,15 @@ sign = "auto"
 [watchlist]
 # Delegationen, deren DS-Änderungen prominent gemeldet werden
 domains = ["mertins.dev"]
+
+[alert]
+# E-Mail-Alerting: `to` leer lassen = aus (dann nur Log-Warnungen)
+to = ""
+from = "ds-watch@localhost"
+smtp_host = "localhost"
+smtp_port = 25
+starttls = false
+# optionale TOML-Datei mit smtp_user / smtp_password (chmod 600)
+credentials_file = ""
+# auch bei Quarantäne / Grant-Ablauf (403) / neuen ToU (409) mailen
+on_attention = true

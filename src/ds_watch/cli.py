@@ -16,12 +16,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
+from .alert import format_run_alert, send_alert
 from .config import Config, ConfigError, load_config, load_credentials
 from .czds_client import CzdsAccessError, CzdsClient, CzdsError, CzdsTermsError
 from .diff import QuarantineError, diff_states, sanity_check
 from .extract import ExtractResult, extract_ds_state
-from .publish import event_json, git_commit, write_events, write_stats
-from .store import StateMeta, read_state, tld_paths
+from .publish import event_json, git_commit, write_dnskey, write_events, write_stats
+from .store import StateMeta, load_proofs_for, read_state, tld_paths
 
 log = logging.getLogger("ds_watch")
 
@@ -91,7 +92,7 @@ def extract_zone(cfg: Config, tld: str, date: str) -> tuple[StateMeta, "ExtractR
     sidecar = _head_sidecar(cfg, tld)
     head = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
 
-    result = extract_ds_state(tp.work_zone, tp.new_state, tld)
+    result = extract_ds_state(tp.work_zone, tp.new_state, tld, proofs_out=tp.new_proofs)
     meta = StateMeta(
         tld=tld,
         date=date,
@@ -103,6 +104,7 @@ def extract_zone(cfg: Config, tld: str, date: str) -> tuple[StateMeta, "ExtractR
         ds_domains=result.ds_domains,
         malformed=result.malformed,
         state_sha256=result.state_sha256,
+        rrsig_ds=result.rrsig_ds,
     )
     meta.save(tp.new_meta)
     return meta, result
@@ -143,19 +145,39 @@ def run_tld(cfg: Config, client: CzdsClient, tld: str, force: bool,
             log.warning(".%s: Diff überbrückt %d Tage", tld, gap_days)
         events = list(diff_states(read_state(tp.current_state), read_state(tp.new_state)))
 
-        for e in events:
-            if e.domain in cfg.watchlist:
-                log.warning(
-                    "WATCHLIST-TREFFER: %s — %s (before=%s, after=%s)",
-                    e.domain, e.event, e.before, e.after,
-                )
+    watchlist_hits = []
+    for e in events:
+        if e.domain in cfg.watchlist:
+            log.warning(
+                "WATCHLIST-TREFFER: %s — %s (before=%s, after=%s)",
+                e.domain, e.event, e.before, e.after,
+            )
+            watchlist_hits.append({
+                "domain": e.domain,
+                "event": e.event,
+                "before": ", ".join(map(str, e.before)),
+                "after": ", ".join(map(str, e.after)),
+            })
+
+    # RRSIG-Evidenz: Registry-Signaturen für genau die Delegationen mit Events
+    proofs_before: dict[str, list[str]] = {}
+    proofs_after: dict[str, list[str]] = {}
+    if events:
+        domains = {e.domain for e in events}
+        proofs_before = load_proofs_for(tp.current_proofs, domains)
+        proofs_after = load_proofs_for(tp.new_proofs, domains)
 
     counts = Counter(e.event for e in events)
     json_events = [
-        event_json(e, date=date, tld=tld, gap_days=gap_days, run_id=run_id)
+        event_json(e, date=date, tld=tld, gap_days=gap_days, run_id=run_id,
+                   rrsig_before=proofs_before.get(e.domain),
+                   rrsig_after=proofs_after.get(e.domain))
         for e in events
     ]
     ev_path = write_events(cfg.events_dir, tld, date, json_events)
+    dk_path = write_dnskey(cfg.events_dir, tld, date,
+                           result.dnskey_rrset, result.dnskey_rrsigs,
+                           new_meta.soa_serial)
     st_path = write_stats(cfg.stats_dir, tld, date, {
         "baseline": baseline,
         "soa_serial": new_meta.soa_serial,
@@ -175,7 +197,8 @@ def run_tld(cfg: Config, client: CzdsClient, tld: str, force: bool,
         "status": "baseline" if baseline else "ok",
         "counts": counts,
         "ds_domains": new_meta.ds_domains,
-        "paths": [p for p in (ev_path, st_path) if p],
+        "paths": [p for p in (ev_path, st_path, dk_path) if p],
+        "watchlist_hits": watchlist_hits,
     }
 
 
@@ -219,6 +242,11 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
             f"run {date}: " + "; ".join(parts),
             cfg.git_sign,
         )
+
+    hits = [h for r in results for h in r.get("watchlist_hits", [])]
+    attention = [r for r in results if r["status"] in ("quarantined", "needs-attention", "error")]
+    if cfg.alert.enabled and (hits or (attention and cfg.alert.on_attention)):
+        send_alert(cfg.alert, *format_run_alert(date, hits, attention))
 
     for r in results:
         log.info("Ergebnis: %s", _summary_line(r))
