@@ -51,8 +51,18 @@ Dieses Tool ist so gebaut, dass es die CZDS Terms of Use (v1.00) einhält:
 - **§1.6**: Es werden ausschließlich abgeleitete Diffs und Aggregate
   abgelegt/committet („value-added"), nie volle Snapshots oder Roh-Zonendaten.
   Die Voll-Snapshots unter `state/` sind gitignored und bleiben lokal.
-  **Vor einer Veröffentlichung des Event-Logs**: Empfängern ist die Nutzung
-  entgegen ToU §1.1 zu untersagen (Hinweis gehört dann prominent hierher).
+
+### Hinweis für Nachnutzer der Daten (ToU §1.6 → §1.1)
+
+Die Aggregate und das Event-Log in diesem Repository sind aus
+ICANN-CZDS-Zonefiles abgeleitete Daten. Ihre Nutzung entgegen CZDS ToU §1.1
+ist untersagt. Insbesondere dürfen sie nur für rechtmäßige Zwecke verwendet
+werden und unter keinen Umständen dazu, (a) die Versendung unaufgeforderter
+Massenwerbung (per E-Mail, Telefon oder Fax) zu ermöglichen oder zu
+unterstützen oder (b) hochvolumige, automatisierte Abfragen an Systeme von
+Registries oder ICANN-akkreditierten Registraren zu richten, außer soweit
+zur Registrierung oder Verwaltung von Domainnamen erforderlich. Bei
+Weitergabe der Daten ist diese Auflage weiterzureichen.
 
 HTTP 403 (Grant abgelaufen — Grants laufen nach ≥3 Monaten aus!) und
 HTTP 409 (neue ToU im Portal zu akzeptieren) beenden den Lauf mit
@@ -142,8 +152,7 @@ Event-Beispiel:
 
 Phase-1-MVP (lokaler Betrieb). Später: VPS-Betrieb, E-Mail-Alerting für die
 Watchlist, echtes Merkle-Log (Sigsum), Veröffentlichung — vorher README und
-Kommentare auf Englisch umstellen und den ToU-§1.6-Hinweis für Nachnutzer
-ergänzen. Kontext: `../NEXT-STEPS.md`.
+Kommentare auf Englisch umstellen. Kontext: `../NEXT-STEPS.md`.
 
 ## Lizenz
 
