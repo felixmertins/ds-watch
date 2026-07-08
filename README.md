@@ -150,10 +150,8 @@ Event-Beispiel:
 
 ## Status / Roadmap
 
-Phase-1-MVP (lokaler Betrieb). Später: VPS-Betrieb, E-Mail-Alerting für die
-Watchlist, echtes Merkle-Log (Sigsum), Veröffentlichung — vorher README und
-Kommentare auf Englisch umstellen. Kontext: `../NEXT-STEPS.md`.
-
+E-Mail-Alerting für die
+Watchlist, echtes Merkle-Log (Sigsum)
 ## Lizenz
 
 Apache-2.0
