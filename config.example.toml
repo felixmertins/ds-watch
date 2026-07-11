@@ -44,8 +44,15 @@ to = ""
 from = "ds-watch@localhost"
 smtp_host = "localhost"
 smtp_port = 25
-starttls = false
-# optional TOML file with smtp_user / smtp_password (chmod 600)
+# TLS mode: "none" (plain, e.g. local MTA), "starttls" (usually port 587),
+# "ssl" (implicit TLS, usually port 465)
+tls = "none"
+# optional TOML file with smtp_user / smtp_password (chmod 600) — with an
+# external submission account, delivery is independent of this host's DNS/IP:
+#   smtp_host = "mail.example.org"
+#   smtp_port = 587
+#   tls = "starttls"
+#   credentials_file = "~/.config/ds-watch/smtp-credentials"
 credentials_file = ""
 # also send mail on quarantine / grant expiry (403) / new ToU (409)
 on_attention = true

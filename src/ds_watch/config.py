@@ -17,7 +17,7 @@ class AlertConfig:
     sender: str
     smtp_host: str
     smtp_port: int
-    starttls: bool
+    tls: str  # "none" | "starttls" (usually port 587) | "ssl" (implicit TLS, usually port 465)
     credentials_file: Path | None  # optional: TOML with smtp_user/smtp_password
     on_attention: bool  # also mail on quarantine/403/409
 
@@ -68,6 +68,13 @@ def load_config(path: Path) -> Config:
     watchlist = raw.get("watchlist", {})
     alert = raw.get("alert", {})
 
+    # legacy key: starttls = true/false (pre-tls configs keep working)
+    alert_tls = str(
+        alert.get("tls", "starttls" if alert.get("starttls") else "none")
+    ).lower()
+    if alert_tls not in ("none", "starttls", "ssl"):
+        raise ConfigError('[alert] tls must be "none", "starttls", or "ssl"')
+
     tlds = [t.strip(".").lower() for t in raw.get("tlds", [])]
     if not tlds:
         raise ConfigError("No TLDs configured (key `tlds`)")
@@ -95,7 +102,7 @@ def load_config(path: Path) -> Config:
             sender=alert.get("from", "ds-watch@localhost"),
             smtp_host=alert.get("smtp_host", "localhost"),
             smtp_port=int(alert.get("smtp_port", 25)),
-            starttls=bool(alert.get("starttls", False)),
+            tls=alert_tls,
             credentials_file=(
                 Path(alert["credentials_file"]).expanduser()
                 if alert.get("credentials_file") else None

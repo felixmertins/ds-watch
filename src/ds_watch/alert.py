@@ -1,8 +1,11 @@
 """Email alerting: watchlist hits and operational issues (quarantine, grant/ToU).
 
 Delivery via SMTP (default: localhost:25 — on the VPS a local MTA or msmtp
-as a sendmail replacement is enough). Send failures never abort the run:
-alerting is a secondary channel; the log warning remains the source of truth.
+as a sendmail replacement is enough). For an external provider, set
+smtp_host/smtp_port, tls ("starttls" or "ssl"), and a credentials file with
+smtp_user/smtp_password — then delivery is independent of the host's own
+DNS/IP reputation. Send failures never abort the run: alerting is a
+secondary channel; the log warning remains the source of truth.
 """
 
 from __future__ import annotations
@@ -31,8 +34,9 @@ def send_alert(cfg: AlertConfig, subject: str, body: str) -> bool:
     msg.set_content(body)
 
     try:
-        with smtplib.SMTP(cfg.smtp_host, cfg.smtp_port, timeout=30) as smtp:
-            if cfg.starttls:
+        smtp_cls = smtplib.SMTP_SSL if cfg.tls == "ssl" else smtplib.SMTP
+        with smtp_cls(cfg.smtp_host, cfg.smtp_port, timeout=30) as smtp:
+            if cfg.tls == "starttls":
                 smtp.starttls()
             if cfg.credentials_file:
                 with cfg.credentials_file.open("rb") as f:

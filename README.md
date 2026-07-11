@@ -39,9 +39,14 @@ are future work. Events derived from v0.1 states (baselines) do not have
 
 `[alert]` in config.toml: email on watchlist hits and — if
 `on_attention = true` — on quarantine, expired grants (403), and new terms
-of use (409). Delivery via SMTP (default localhost:25; on a VPS a local MTA
-or msmtp is enough). Leave `to` empty to disable. Delivery failures never
-abort a run; the log warning remains authoritative.
+of use (409). Delivery via SMTP: by default localhost:25 (a local MTA or
+msmtp is enough), or an authenticated submission account at any mail
+provider — set `smtp_host`/`smtp_port`, `tls` (`"starttls"` for port 587,
+`"ssl"` for port 465), and point `credentials_file` at a TOML file with
+`smtp_user`/`smtp_password` (chmod 600). With an external account, delivery
+does not depend on this host's DNS or IP reputation. Leave `to` empty to
+disable. Delivery failures never abort a run; the log warning remains
+authoritative.
 
 ## CZDS Terms of Use (important)
 
