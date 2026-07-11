@@ -1,10 +1,10 @@
-"""ICANN-CZDS-API-Client: Auth (JWT, 24 h gültig), Zonen-Listing, HEAD, Download.
+"""ICANN CZDS API client: auth (JWT, valid 24 h), zone listing, HEAD, download.
 
-API-Randbedingungen (ICANN CZDS API Spec 2022-05-24, ToU v1.00):
-- User-Agent-Header ist Pflicht, sonst Redirect auf eine Maintenance-Seite
-- Auth-Rate-Limit: 8 Versuche / 5 min / IP → Token wird 23 h gecacht
-- 401 = Token abgelaufen (einmalige Re-Auth), 403 = Grant fehlt/abgelaufen,
-  409 = neue Terms & Conditions müssen im CZDS-Portal akzeptiert werden
+API constraints (ICANN CZDS API Spec 2022-05-24, ToU v1.00):
+- User-Agent header is mandatory, otherwise redirect to a maintenance page
+- Auth rate limit: 8 attempts / 5 min / IP → token is cached for 23 h
+- 401 = token expired (single re-auth), 403 = grant missing/expired,
+  409 = new Terms & Conditions must be accepted in the CZDS portal
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ import requests
 
 log = logging.getLogger(__name__)
 
-TOKEN_MAX_AGE_S = 23 * 3600  # JWT gilt 24 h; 1 h Sicherheitsmarge
+TOKEN_MAX_AGE_S = 23 * 3600  # JWT is valid for 24 h; 1 h safety margin
 DOWNLOAD_CHUNK = 1 << 20
 
 
@@ -32,11 +32,11 @@ class CzdsAuthError(CzdsError):
 
 
 class CzdsAccessError(CzdsError):
-    """HTTP 403: Zone nicht genehmigt oder Grant abgelaufen — Portal prüfen."""
+    """HTTP 403: zone not approved or grant expired — check the portal."""
 
 
 class CzdsTermsError(CzdsError):
-    """HTTP 409: neue Terms & Conditions müssen im CZDS-Portal akzeptiert werden."""
+    """HTTP 409: new Terms & Conditions must be accepted in the CZDS portal."""
 
 
 @dataclass
@@ -79,21 +79,21 @@ class CzdsClient:
         )
         if resp.status_code == 429:
             raise CzdsAuthError(
-                "Auth-Rate-Limit erreicht (8 Versuche / 5 min) — später erneut versuchen"
+                "Auth rate limit reached (8 attempts / 5 min) — retry later"
             )
         if resp.status_code != 200:
             raise CzdsAuthError(
-                f"Authentifizierung fehlgeschlagen (HTTP {resp.status_code}): {resp.text[:200]}"
+                f"Authentication failed (HTTP {resp.status_code}): {resp.text[:200]}"
             )
         token = resp.json().get("accessToken")
         if not token:
-            raise CzdsAuthError("Auth-Antwort ohne accessToken")
+            raise CzdsAuthError("Auth response missing accessToken")
         self.token_cache.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.token_cache.with_suffix(".part")
         tmp.write_text(json.dumps({"token": token, "created": time.time()}))
         tmp.chmod(0o600)
         tmp.replace(self.token_cache)
-        log.info("Neues CZDS-Token geholt")
+        log.info("Fetched new CZDS token")
         return token
 
     def _token(self, force_refresh: bool = False) -> str:
@@ -123,20 +123,20 @@ class CzdsClient:
             timeout=300,
         )
         if resp.status_code == 401 and _retry_auth:
-            log.info("HTTP 401 — Token abgelaufen, einmalige Re-Authentifizierung")
+            log.info("HTTP 401 — token expired, re-authenticating once")
             self._token(force_refresh=True)
             return self._request(method, url, stream=stream, _retry_auth=False)
         if resp.status_code == 401:
-            raise CzdsAuthError(f"401 trotz frischem Token für {url}")
+            raise CzdsAuthError(f"401 despite fresh token for {url}")
         if resp.status_code == 403:
             raise CzdsAccessError(
-                f"Zugriff verweigert (403) für {url} — Grant abgelaufen oder Zone "
-                "nicht genehmigt; im CZDS-Portal prüfen/verlängern"
+                f"Access denied (403) for {url} — grant expired or zone "
+                "not approved; check/renew in the CZDS portal"
             )
         if resp.status_code == 409:
             raise CzdsTermsError(
-                "HTTP 409 — neue CZDS Terms & Conditions müssen im Portal "
-                "(czds.icann.org) akzeptiert werden"
+                "HTTP 409 — new CZDS Terms & Conditions must be accepted in the "
+                "portal (czds.icann.org)"
             )
         resp.raise_for_status()
         return resp
@@ -147,7 +147,7 @@ class CzdsClient:
         if self._links is None:
             resp = self._request("GET", f"{self.api_base}/czds/downloads/links")
             self._links = resp.json()
-            log.info("CZDS: %d genehmigte Zonen-Links", len(self._links))
+            log.info("CZDS: %d approved zone links", len(self._links))
         return self._links
 
     def zone_url(self, tld: str) -> str:
@@ -156,8 +156,8 @@ class CzdsClient:
             if link.endswith(suffix):
                 return link
         raise CzdsAccessError(
-            f"Kein Download-Link für .{tld} — Zone nicht genehmigt? "
-            f"Verfügbar: {', '.join(sorted(l.rsplit('/', 1)[-1] for l in self.download_links()))}"
+            f"No download link for .{tld} — zone not approved? "
+            f"Available: {', '.join(sorted(l.rsplit('/', 1)[-1] for l in self.download_links()))}"
         )
 
     @staticmethod
@@ -172,10 +172,10 @@ class CzdsClient:
         return self._head_of(self._request("HEAD", self.zone_url(tld)))
 
     def download(self, tld: str, dest: Path) -> ZoneHead:
-        """Zonefile (gzip) streamend und atomar nach `dest` laden.
+        """Stream the zone file (gzip) to `dest`, written atomically.
 
-        Wirft CzdsError bei Größen-Mismatch — abgeschnittene Downloads sind der
-        klassische Fehlermodus und dürfen nie in die Diff-Pipeline gelangen.
+        Raises CzdsError on a size mismatch — truncated downloads are the
+        classic failure mode and must never reach the diff pipeline.
         """
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_suffix(dest.suffix + ".part")
@@ -189,8 +189,8 @@ class CzdsClient:
         if head.content_length is not None and written != head.content_length:
             tmp.unlink(missing_ok=True)
             raise CzdsError(
-                f".{tld}: Download unvollständig ({written} von {head.content_length} Bytes)"
+                f".{tld}: incomplete download ({written} of {head.content_length} bytes)"
             )
         tmp.replace(dest)
-        log.info(".%s: %d Bytes heruntergeladen (Last-Modified: %s)", tld, written, head.last_modified)
+        log.info(".%s: downloaded %d bytes (Last-Modified: %s)", tld, written, head.last_modified)
         return head

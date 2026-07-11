@@ -4,20 +4,20 @@ from ds_watch.extract import extract_ds_state
 from ds_watch.store import load_proofs_for, read_state
 
 ZONE = "\n".join([
-    "; Kommentarzeile",
+    "; comment line",
     "org.\t900\tin\tsoa\ta0.org.afilias-nst.info. hostmaster.donuts.email. 2026070500 1800 900 604800 86400",
     "org.\t86400\tin\tns\ta0.org.afilias-nst.info.",
     "beta.org.\t86400\tin\tds\t54321 13 2 CDEF00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDD",
-    # Digest in Presentation-Form mit Whitespace aufgeteilt
+    # digest split across whitespace in presentation form
     "alpha.org.\t86400\tin\tds\t12345 8 2 AABBCCDD EEFF0011 22334455 66778899 AABBCCDD EEFF0011 22334455 66778899",
-    # zweiter DS-RR derselben Delegation
+    # second DS RR of the same delegation
     "alpha.org.\t86400\tin\tds\t12346 8 2 00112233445566778899AABBCCDDEEFF00112233445566778899AABBCCDDEEFF",
-    # Space- statt Tab-getrennt (tolerantes Parsing)
+    # space- instead of tab-separated (tolerant parsing)
     "gamma.org. 86400 in ds 11111 15 4 " + "ab" * 48,
-    # Uppercase-Typ und Trailing-Dot-Handling
+    # uppercase type and trailing-dot handling
     "DELTA.ORG.\t86400\tIN\tDS\t22222 13 2 " + "cd" * 32,
     "alpha.org.\t86400\tin\tns\tns1.example.net.",
-    # kaputte Zeilen → malformed
+    # broken lines → malformed
     "broken.org.\t86400\tin\tds\tnotanumber 8 2 aabb",
     "short.org.\t86400\tin\tds\t1 2",
     "nohex.org.\t86400\tin\tds\t1 8 2 zzzz",
@@ -45,7 +45,7 @@ def test_extract_normalizes_and_sorts(tmp_path):
     domains = [d for d, _ in entries]
     assert domains == sorted(domains)
     assert domains == ["alpha.org", "alpha.org", "beta.org", "delta.org", "gamma.org"]
-    # Whitespace-Digest zusammengefügt und lowercase
+    # whitespace-split digest joined and lowercased
     assert entries[0][1] == (12345, 8, 2, "aabbccddeeff00112233445566778899" * 2)
 
 
@@ -55,11 +55,11 @@ PROOF_ZONE = "\n".join([
     "org.\t900\tin\tdnskey\t256 3 8 AwEAAaApexZSK",
     "org.\t900\tin\trrsig\tdnskey 8 1 900 20260719000000 20260705000000 1111 org. ApexSigA ApexSigB",
     "alpha.org.\t86400\tin\tds\t12345 8 2 " + "ab" * 32,
-    # Signatur in Presentation-Form aufgeteilt → wird mit Spaces zusammengefügt
+    # signature split in presentation form → joined back with spaces
     "alpha.org.\t86400\tin\trrsig\tds 8 2 86400 20260719000000 20260705000000 2222 org. SigAlpha1 SigAlpha2",
     "beta.org.\t86400\tin\tds\t54321 13 2 " + "cd" * 32,
     "beta.org.\t86400\tin\trrsig\tds 8 2 86400 20260719000000 20260705000000 2222 org. SigBeta",
-    # andere RRSIG-Typen werden ignoriert
+    # other RRSIG types are ignored
     "alpha.org.\t86400\tin\trrsig\tnsec3 8 2 86400 20260719000000 20260705000000 2222 org. Zzz",
     "sub.other.org.\t300\tin\trrsig\ta 8 3 300 20260719000000 20260705000000 2222 other.org. Xx",
     "",
@@ -84,7 +84,7 @@ def test_extract_proofs_and_dnskey(tmp_path):
         "alpha.org": ["ds 8 2 86400 20260719000000 20260705000000 2222 org. SigAlpha1 SigAlpha2"],
         "beta.org": ["ds 8 2 86400 20260719000000 20260705000000 2222 org. SigBeta"],
     }
-    # ohne proofs_out: keine Proof-Verarbeitung, Rest identisch
+    # without proofs_out: no proof processing, everything else identical
     res2 = extract_ds_state(zone, tmp_path / "state2.gz", "org")
     assert res2.rrsig_ds == 0 and res2.ds_rrs == 2
 

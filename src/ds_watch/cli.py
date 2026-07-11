@@ -1,7 +1,7 @@
 """CLI: ds-watch fetch|extract|diff|run|status.
 
-Exit-Codes (für systemd/Cron-Alerting):
-  0 = OK, 1 = Fehler, 2 = braucht Aufmerksamkeit (Quarantäne, Grant/ToU-Problem)
+Exit codes (for systemd/cron alerting):
+  0 = OK, 1 = error, 2 = needs attention (quarantine, grant/ToU problem)
 """
 
 from __future__ import annotations
@@ -55,21 +55,21 @@ def _head_sidecar(cfg: Config, tld: str) -> Path:
 
 
 def fetch_zone(cfg: Config, client: CzdsClient, tld: str, force: bool) -> str:
-    """Zone laden, sofern neu und ToU-konform (§1.8: max. 1 Download / 24 h)."""
+    """Fetch the zone if it is new and ToU-compliant (§1.8: max 1 download / 24 h)."""
     tp = tld_paths(cfg.state_dir, tld)
     meta = StateMeta.load(tp.current_meta) if tp.has_current() else None
     head = client.head(tld)
 
     if meta and not force:
         if head.last_modified and meta.last_modified == head.last_modified:
-            log.info(".%s: Zone unverändert (Last-Modified %s) — übersprungen",
+            log.info(".%s: zone unchanged (Last-Modified %s) — skipped",
                      tld, head.last_modified)
             return "unchanged"
         age_h = (_now() - datetime.fromisoformat(meta.downloaded_at)).total_seconds() / 3600
         if age_h < cfg.min_fetch_interval_hours:
             log.warning(
-                ".%s: letzter Download vor %.1f h (< %g h, ToU §1.8) — übersprungen "
-                "(--force überschreibt)", tld, age_h, cfg.min_fetch_interval_hours,
+                ".%s: last download %.1f h ago (< %g h, ToU §1.8) — skipped "
+                "(--force overrides)", tld, age_h, cfg.min_fetch_interval_hours,
             )
             return "too-recent"
 
@@ -85,10 +85,10 @@ def fetch_zone(cfg: Config, client: CzdsClient, tld: str, force: bool) -> str:
 
 
 def extract_zone(cfg: Config, tld: str, date: str) -> tuple[StateMeta, "ExtractResult"]:
-    """Work-Zone → new.state.gz + new.meta.json. Löscht die Roh-Zone NICHT."""
+    """Work zone → new.state.gz + new.meta.json. Does NOT delete the raw zone."""
     tp = tld_paths(cfg.state_dir, tld)
     if not tp.work_zone.is_file():
-        raise CzdsError(f".{tld}: keine Roh-Zone unter {tp.work_zone} — erst `fetch`")
+        raise CzdsError(f".{tld}: no raw zone at {tp.work_zone} — run `fetch` first")
     sidecar = _head_sidecar(cfg, tld)
     head = json.loads(sidecar.read_text()) if sidecar.is_file() else {}
 
@@ -124,7 +124,7 @@ def run_tld(cfg: Config, client: CzdsClient, tld: str, force: bool,
     try:
         new_meta, result = extract_zone(cfg, tld, date)
     finally:
-        # ToU §1.4: Roh-Zonendaten nur so lange aufbewahren wie nötig
+        # ToU §1.4: keep raw zone data only as long as necessary
         tp.work_zone.unlink(missing_ok=True)
         _head_sidecar(cfg, tld).unlink(missing_ok=True)
 
@@ -138,18 +138,18 @@ def run_tld(cfg: Config, client: CzdsClient, tld: str, force: bool,
                          cfg.sanity_min_ratio, cfg.sanity_min_zone_lines)
         except QuarantineError as e:
             qpath = tp.quarantine(date)
-            log.error(".%s: QUARANTÄNE — %s (Snapshot: %s)", tld, e, qpath)
+            log.error(".%s: QUARANTINE — %s (snapshot: %s)", tld, e, qpath)
             return {"tld": tld, "status": "quarantined", "reason": str(e)}
         gap_days = (date_t.fromisoformat(date) - date_t.fromisoformat(prev_meta.date)).days
         if gap_days > 1:
-            log.warning(".%s: Diff überbrückt %d Tage", tld, gap_days)
+            log.warning(".%s: diff spans %d days", tld, gap_days)
         events = list(diff_states(read_state(tp.current_state), read_state(tp.new_state)))
 
     watchlist_hits = []
     for e in events:
         if e.domain in cfg.watchlist:
             log.warning(
-                "WATCHLIST-TREFFER: %s — %s (before=%s, after=%s)",
+                "WATCHLIST HIT: %s — %s (before=%s, after=%s)",
                 e.domain, e.event, e.before, e.after,
             )
             watchlist_hits.append({
@@ -159,7 +159,7 @@ def run_tld(cfg: Config, client: CzdsClient, tld: str, force: bool,
                 "after": ", ".join(map(str, e.after)),
             })
 
-    # RRSIG-Evidenz: Registry-Signaturen für genau die Delegationen mit Events
+    # RRSIG evidence: registry signatures for exactly the delegations with events
     proofs_before: dict[str, list[str]] = {}
     proofs_after: dict[str, list[str]] = {}
     if events:
@@ -208,7 +208,7 @@ def _summary_line(r: dict) -> str:
         return (f"{r['tld']} +{c.get('ds_added', 0)} "
                 f"-{c.get('ds_removed', 0)} ~{c.get('ds_changed', 0)}")
     if r["status"] == "baseline":
-        return f"{r['tld']} baseline ({r['ds_domains']} DS-Domains)"
+        return f"{r['tld']} baseline ({r['ds_domains']} DS domains)"
     return f"{r['tld']} {r['status']}"
 
 
@@ -249,11 +249,11 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         send_alert(cfg.alert, *format_run_alert(date, hits, attention))
 
     for r in results:
-        log.info("Ergebnis: %s", _summary_line(r))
+        log.info("result: %s", _summary_line(r))
     return exit_code
 
 
-# -- Einzelkommandos ------------------------------------------------------------
+# -- individual commands ----------------------------------------------------------
 
 
 def cmd_fetch(cfg: Config, args: argparse.Namespace) -> int:
@@ -272,21 +272,21 @@ def cmd_extract(cfg: Config, args: argparse.Namespace) -> int:
     date = _now().date().isoformat()
     for tld in args.tlds:
         extract_zone(cfg, tld, date)
-        log.info(".%s: State unter %s (Roh-Zone bleibt für Debugging liegen — "
-                 "`run` löscht sie)", tld, tld_paths(cfg.state_dir, tld).new_state)
+        log.info(".%s: state at %s (raw zone is kept for debugging — "
+                 "`run` deletes it)", tld, tld_paths(cfg.state_dir, tld).new_state)
     return EXIT_OK
 
 
 def cmd_diff(cfg: Config, args: argparse.Namespace) -> int:
-    """Dry-Run: current vs. new diffen, Events als JSONL auf stdout, nichts schreiben."""
+    """Dry run: diff current vs. new, print events as JSONL to stdout, write nothing."""
     date = _now().date().isoformat()
     for tld in args.tlds:
         tp = tld_paths(cfg.state_dir, tld)
         if not tp.new_state.is_file():
-            log.error(".%s: kein neuer State (%s) — erst `extract`", tld, tp.new_state)
+            log.error(".%s: no new state (%s) — run `extract` first", tld, tp.new_state)
             return EXIT_ERROR
         if not tp.has_current():
-            log.info(".%s: kein Vortages-State — Diff wäre Baseline", tld)
+            log.info(".%s: no previous-day state — diff would be a baseline", tld)
             continue
         for e in diff_states(read_state(tp.current_state), read_state(tp.new_state)):
             print(json.dumps(event_json(e, date=date, tld=tld, gap_days=0,
@@ -298,15 +298,15 @@ def cmd_status(cfg: Config, args: argparse.Namespace) -> int:
     for tld in args.tlds:
         tp = tld_paths(cfg.state_dir, tld)
         if not tp.has_current():
-            print(f".{tld}: kein State (noch kein erfolgreicher Lauf)")
+            print(f".{tld}: no state (no successful run yet)")
             continue
         m = StateMeta.load(tp.current_meta)
         quarantined = len(list(tp.quarantine_dir.glob("*.state.gz"))) \
             if tp.quarantine_dir.is_dir() else 0
         print(
-            f".{tld}: Stand {m.date} (SOA {m.soa_serial}), "
-            f"{m.ds_rrs} DS-RRs auf {m.ds_domains} Delegationen, "
-            f"Zone {m.zone_lines} Zeilen, Quarantäne: {quarantined}"
+            f".{tld}: as of {m.date} (SOA {m.soa_serial}), "
+            f"{m.ds_rrs} DS RRs across {m.ds_domains} delegations, "
+            f"zone {m.zone_lines} lines, quarantine: {quarantined}"
         )
     return EXIT_OK
 
@@ -317,27 +317,27 @@ def cmd_status(cfg: Config, args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="ds-watch",
-        description="DS-Record-Observatory über ICANN-CZDS-Zonefiles",
+        description="DS record observatory over ICANN CZDS zone files",
     )
     parser.add_argument("-c", "--config", type=Path, default=Path("config.toml"),
-                        help="Pfad zur config.toml (Default: ./config.toml)")
+                        help="path to config.toml (default: ./config.toml)")
     parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--version", action="version", version=f"ds-watch {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     for name, fn, doc in (
-        ("fetch", cmd_fetch, "Zonefiles herunterladen (mit HEAD-Check und 24-h-Guard)"),
-        ("extract", cmd_extract, "DS-State aus geladener Roh-Zone extrahieren"),
-        ("diff", cmd_diff, "Dry-Run-Diff current vs. new auf stdout"),
-        ("run", cmd_run, "Voller Lauf: fetch → extract → diff → publish → rotate"),
-        ("status", cmd_status, "State-Übersicht pro TLD"),
+        ("fetch", cmd_fetch, "download zone files (with HEAD check and 24 h guard)"),
+        ("extract", cmd_extract, "extract DS state from a downloaded raw zone"),
+        ("diff", cmd_diff, "dry-run diff of current vs. new on stdout"),
+        ("run", cmd_run, "full run: fetch → extract → diff → publish → rotate"),
+        ("status", cmd_status, "state overview per TLD"),
     ):
         p = sub.add_parser(name, help=doc)
         p.set_defaults(fn=fn)
         p.add_argument("--tld", dest="tlds", action="append", metavar="TLD",
-                       help="nur diese TLD (mehrfach möglich; Default: alle aus config)")
+                       help="only this TLD (repeatable; default: all from config)")
         p.add_argument("--force", action="store_true",
-                       help="HEAD-/24-h-Guard übergehen (fetch/run)")
+                       help="bypass the HEAD/24 h guard (fetch/run)")
 
     args = parser.parse_args(argv)
     logging.basicConfig(

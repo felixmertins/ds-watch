@@ -42,16 +42,16 @@ def test_send_failure_is_swallowed(monkeypatch):
     def boom(*a, **kw):
         raise OSError("connection refused")
     monkeypatch.setattr(alert_mod.smtplib, "SMTP", boom)
-    assert send_alert(_cfg(), "s", "b") is False  # kein Raise — Lauf geht weiter
+    assert send_alert(_cfg(), "s", "b") is False  # no raise — the run continues
 
 
 def test_format_run_alert():
     hits = [{"domain": "mertins.dev", "event": "ds_changed",
              "before": "(46661, 8, 2, 'aa')", "after": "(11111, 13, 2, 'bb')"}]
-    attention = [{"tld": "org", "status": "quarantined", "reason": "DS-Einbruch"}]
+    attention = [{"tld": "org", "status": "quarantined", "reason": "DS drop"}]
     subject, body = format_run_alert("2026-07-06", hits, attention)
     assert "1 watchlist hit" in subject
     assert "1 zone(s) need attention" in subject
     assert "mertins.dev (ds_changed)" in body
-    assert ".org: quarantined — DS-Einbruch" in body
-    assert "Registrar" in body
+    assert ".org: quarantined — DS drop" in body
+    assert "registrar" in body

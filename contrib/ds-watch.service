@@ -1,5 +1,5 @@
 [Unit]
-Description=ds-watch: täglicher CZDS-DS-Collector-Lauf
+Description=ds-watch: daily CZDS DS collector run
 Wants=network-online.target
 After=network-online.target
 
@@ -7,5 +7,5 @@ After=network-online.target
 Type=oneshot
 WorkingDirectory=%h/Dokumente/03_Projekte/03_IETF/01_EvDANE/ds-watch
 ExecStart=%h/Dokumente/03_Projekte/03_IETF/01_EvDANE/ds-watch/.venv/bin/ds-watch run
-# Exit-Code 2 (Quarantäne / Grant abgelaufen / neue ToU) bleibt bewusst ein
-# sichtbarer Fehler: `systemctl --user status ds-watch` zeigt ihn an.
+# Exit code 2 (quarantine / grant expired / new ToU) deliberately stays a
+# visible failure: `systemctl --user status ds-watch` shows it.

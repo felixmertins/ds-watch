@@ -38,7 +38,7 @@ def test_diff_added_removed_changed():
 
 
 def test_diff_multi_rr_rrset_compares_as_set():
-    # Delegation mit zwei DS-RRs: einer bleibt, einer kommt dazu → ds_changed
+    # Delegation with two DS RRs: one stays, one is added → ds_changed
     prev = [("multi.org", RR_A)]
     curr = [("multi.org", RR_A), ("multi.org", RR_B)]
     events = list(diff_states(iter(prev), iter(curr)))
@@ -62,13 +62,13 @@ def _meta(ds_rrs: int) -> StateMeta:
 
 
 def test_sanity_gate_blocks_ds_collapse():
-    with pytest.raises(QuarantineError, match="DS-Einbruch"):
+    with pytest.raises(QuarantineError, match="DS collapse"):
         sanity_check(_meta(100_000), curr_ds_rrs=50_000, curr_zone_lines=50_000_000,
                      min_ratio=0.7, min_zone_lines=10_000)
 
 
 def test_sanity_gate_blocks_tiny_zone():
-    with pytest.raises(QuarantineError, match="klein"):
+    with pytest.raises(QuarantineError, match="small"):
         sanity_check(_meta(100_000), curr_ds_rrs=100_000, curr_zone_lines=500,
                      min_ratio=0.7, min_zone_lines=10_000)
 
