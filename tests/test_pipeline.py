@@ -1,4 +1,4 @@
-"""End-to-End-Test der run-Pipeline mit gemocktem Fetch (kein Netzwerk)."""
+"""End-to-end test of the run pipeline with mocked fetch (no network)."""
 
 import gzip
 import json
@@ -95,9 +95,9 @@ def test_baseline_then_diff(tmp_path, monkeypatch, caplog):
     assert stats1["ds_domains"] == 3
     assert stats1["soa_serial"] == "100"
     assert stats1["prev_stats"] is None
-    # Baseline erzeugt keine Events (nur das DNSKEY-Paket unter events/dev/dnskey/)
+    # Baseline produces no events (only the DNSKEY bundle under events/dev/dnskey/)
     assert not (tmp_path / "events/dev/2026").exists()
-    assert not (tmp_path / "state/work/dev.zone.gz").exists()  # Roh-Zone gelöscht
+    assert not (tmp_path / "state/work/dev.zone.gz").exists()  # raw zone deleted
 
     monkeypatch.setattr(cli, "fetch_zone", _fake_fetch(DAY2))
     with caplog.at_level(logging.WARNING, logger="ds_watch"):
@@ -112,21 +112,21 @@ def test_baseline_then_diff(tmp_path, monkeypatch, caplog):
     assert by["watched.dev"]["before"][0]["key_tag"] == 3
     assert by["watched.dev"]["after"][0]["key_tag"] == 5
 
-    # RRSIG-Evidenz: Registry-Signaturen für Vorher- und Nachher-Zustand
+    # RRSIG evidence: registry signatures for the before and after state
     assert by["watched.dev"]["rrsig_before"][0].endswith("dev. SigWatchedD1")
     assert by["watched.dev"]["rrsig_after"][0].endswith("dev. SigWatchedD2")
     assert by["gone.dev"]["rrsig_before"][0].endswith("dev. SigGoneD1")
-    assert "rrsig_after" not in by["gone.dev"]  # RRset weg → keine neue Signatur
+    assert "rrsig_after" not in by["gone.dev"]  # RRset gone → no new signature
     assert by["new.dev"]["rrsig_after"][0].endswith("dev. SigNewD2")
     assert "rrsig_before" not in by["new.dev"]
 
-    # Tages-DNSKEY-Pakete für die Langzeit-Verifikation
+    # Daily DNSKEY bundles for long-term verification
     dk1 = json.loads((tmp_path / "events/dev/dnskey/2026-07-04.json").read_text())
     assert dk1["dnskey"] == ["257 3 13 ApexKeyDay1"]
     dk2 = json.loads((tmp_path / "events/dev/dnskey/2026-07-05.json").read_text())
     assert dk2["rrsig"][0].endswith("dev. ApexSigDay2")
 
-    assert (tmp_path / "state/dev/current.proofs.gz").is_file()  # rotiert
+    assert (tmp_path / "state/dev/current.proofs.gz").is_file()  # rotated
 
     stats2 = json.loads((tmp_path / "stats/dev/2026-07-05.json").read_text())
     assert stats2["events"] == {"ds_added": 1, "ds_removed": 1, "ds_changed": 1}
@@ -138,7 +138,7 @@ def test_baseline_then_diff(tmp_path, monkeypatch, caplog):
     assert [h["domain"] for h in r2["watchlist_hits"]] == ["watched.dev"]
 
     meta = StateMeta.load(tmp_path / "state/dev/current.meta.json")
-    assert meta.date == "2026-07-05"  # rotiert
+    assert meta.date == "2026-07-05"  # rotated
 
 
 def test_truncated_zone_quarantined(tmp_path, monkeypatch):
@@ -146,13 +146,13 @@ def test_truncated_zone_quarantined(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "fetch_zone", _fake_fetch(DAY1))
     cli.run_tld(cfg, None, "dev", False, "2026-07-04", "run1")
 
-    # 3 DS-RRs → 1 DS-RR ist ein Einbruch unter min_ratio → Quarantäne
+    # 3 DS RRs → 1 DS RR is a drop below min_ratio → quarantine
     monkeypatch.setattr(cli, "fetch_zone", _fake_fetch(DAY3_TRUNCATED))
     r = cli.run_tld(cfg, None, "dev", False, "2026-07-05", "run2")
     assert r["status"] == "quarantined"
     assert (tmp_path / "state/dev/quarantine/2026-07-05.state.gz").is_file()
     assert (tmp_path / "state/dev/quarantine/2026-07-05.proofs.gz").is_file()
-    # current bleibt der letzte gute Stand, nichts wurde publiziert
+    # current stays the last good state, nothing was published
     assert StateMeta.load(tmp_path / "state/dev/current.meta.json").date == "2026-07-04"
     assert not (tmp_path / "events/dev/2026").exists()
     assert not (tmp_path / "events/dev/dnskey/2026-07-05.json").exists()

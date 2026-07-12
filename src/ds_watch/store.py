@@ -1,10 +1,10 @@
-"""State-Ablage: DS-Snapshots (sortiert, gzip) + Metadaten pro TLD.
+"""State storage: DS snapshots (sorted, gzip) plus per-TLD metadata.
 
-Layout unter state_dir/ (gitignored, enthält CZDS-abgeleitete Voll-Snapshots):
-  <tld>/current.state.gz    kanonisch: "domain\\tkey_tag\\talg\\tdigest_type\\tdigest\\n", sortiert
-  <tld>/current.meta.json   Download-/Extraktions-Metadaten des Snapshots
-  <tld>/quarantine/         Snapshots, die das Sanity-Gate nicht passiert haben
-  work/<tld>.zone.gz        Roh-Zone, wird nach Extraktion gelöscht (ToU §1.4)
+Layout under state_dir/ (gitignored, contains CZDS-derived full snapshots):
+  <tld>/current.state.gz    canonical: "domain\\tkey_tag\\talg\\tdigest_type\\tdigest\\n", sorted
+  <tld>/current.meta.json   download/extraction metadata for the snapshot
+  <tld>/quarantine/         snapshots that failed the sanity gate
+  work/<tld>.zone.gz        raw zone, deleted after extraction (ToU §1.4)
 """
 
 from __future__ import annotations
@@ -15,23 +15,23 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Iterator
 
-# Ein DS-RR in State-Reihenfolge: (key_tag, algorithm, digest_type, digest)
+# One DS RR in state order: (key_tag, algorithm, digest_type, digest)
 Rdata = tuple[int, int, int, str]
 
 
 @dataclass
 class StateMeta:
     tld: str
-    date: str  # ISO-Datum des Laufs (UTC)
-    downloaded_at: str  # ISO-Zeitstempel (UTC)
-    last_modified: str | None  # HTTP-Header der Zonendatei
+    date: str  # ISO date of the run (UTC)
+    downloaded_at: str  # ISO timestamp (UTC)
+    last_modified: str | None  # HTTP header of the zone file
     soa_serial: str | None
     zone_lines: int
     ds_rrs: int
     ds_domains: int
     malformed: int
-    state_sha256: str  # über den unkomprimierten State-Inhalt
-    rrsig_ds: int = 0  # Anzahl archivierter RRSIG(DS) (0 bei Alt-States aus v0.1)
+    state_sha256: str  # over the uncompressed state content
+    rrsig_ds: int = 0  # number of archived RRSIG(DS) (0 for legacy v0.1 states)
 
     def save(self, path: Path) -> None:
         tmp = path.with_suffix(".part")
@@ -59,7 +59,7 @@ class TldPaths:
         return self.current_state.is_file() and self.current_meta.is_file()
 
     def rotate(self) -> None:
-        """new → current (atomar genug für unseren Ein-Prozess-Betrieb)."""
+        """new → current (atomic enough for our single-process operation)."""
         self.new_state.replace(self.current_state)
         self.new_meta.replace(self.current_meta)
         if self.new_proofs.exists():
@@ -93,7 +93,7 @@ def tld_paths(state_dir: Path, tld: str) -> TldPaths:
 
 
 def read_state(path: Path) -> Iterator[tuple[str, Rdata]]:
-    """State-Datei zeilenweise als (domain, rdata) — Datei ist domain-sortiert."""
+    """State file line by line as (domain, rdata) — the file is domain-sorted."""
     with gzip.open(path, "rt", encoding="ascii") as f:
         for line in f:
             domain, key_tag, alg, digest_type, digest = line.rstrip("\n").split("\t")
@@ -101,10 +101,10 @@ def read_state(path: Path) -> Iterator[tuple[str, Rdata]]:
 
 
 def load_proofs_for(path: Path, domains: set[str]) -> dict[str, list[str]]:
-    """RRSIG(DS)-Zeilen für die gegebenen Delegationen aus einer Proof-Datei holen.
+    """Fetch RRSIG(DS) lines for the given delegations from a proofs file.
 
-    Ein Scan über die Datei (Format: "owner\\t<rrsig-rdata>", owner-sortiert) —
-    nur für die wenigen Event-Domains eines Tages, nie in den RAM als Ganzes.
+    One scan over the file (format: "owner\\t<rrsig-rdata>", owner-sorted) —
+    only for a day's few event domains, never loaded into RAM as a whole.
     """
     if not domains or not path.is_file():
         return {}

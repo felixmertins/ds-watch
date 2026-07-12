@@ -1,4 +1,4 @@
-"""Diff zweier DS-States → Events, plus Sanity-Gate gegen kaputte Läufe."""
+"""Diff two DS states into events, plus a sanity gate against broken runs."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from typing import Iterable, Iterator
 
 from .store import Rdata, StateMeta
 
-DS_ADDED = "ds_added"  # kein DS → DS: DNSSEC-Bootstrap
-DS_REMOVED = "ds_removed"  # DS → kein DS: Delegation geht insecure (wichtigstes Signal)
-DS_CHANGED = "ds_changed"  # RRset differiert: KSK-/Algorithmus-Rollover oder Schlüsseltausch
+DS_ADDED = "ds_added"  # no DS → DS: DNSSEC bootstrap
+DS_REMOVED = "ds_removed"  # DS → no DS: delegation goes insecure (the most important signal)
+DS_CHANGED = "ds_changed"  # RRset differs: KSK/algorithm rollover or key replacement
 
 
 class QuarantineError(Exception):
-    """Neuer Snapshot ist verdächtig — nicht diffen, nicht publizieren."""
+    """New snapshot is suspicious — do not diff, do not publish."""
 
 
 @dataclass
@@ -28,15 +28,15 @@ class Event:
 
 def sanity_check(prev: StateMeta, curr_ds_rrs: int, curr_zone_lines: int,
                  min_ratio: float, min_zone_lines: int) -> None:
-    """Abgeschnittene/leere Zonen erzeugen sonst Massen-`ds_removed`-Events."""
+    """Truncated/empty zones would otherwise produce mass `ds_removed` events."""
     if curr_zone_lines < min_zone_lines:
         raise QuarantineError(
-            f"Zone verdächtig klein: {curr_zone_lines} Zeilen (< {min_zone_lines})"
+            f"Zone suspiciously small: {curr_zone_lines} lines (< {min_zone_lines})"
         )
     if prev.ds_rrs > 0 and curr_ds_rrs < prev.ds_rrs * min_ratio:
         raise QuarantineError(
-            f"DS-Einbruch: {curr_ds_rrs} RRs vs. {prev.ds_rrs} am Vortag "
-            f"(< Faktor {min_ratio})"
+            f"DS collapse: {curr_ds_rrs} RRs vs. {prev.ds_rrs} the day before "
+            f"(< factor {min_ratio})"
         )
 
 
@@ -48,7 +48,7 @@ def _by_domain(state: Iterable[tuple[str, Rdata]]) -> Iterator[tuple[str, list[R
 def diff_states(
     prev: Iterable[tuple[str, Rdata]], curr: Iterable[tuple[str, Rdata]]
 ) -> Iterator[Event]:
-    """Merge-Diff zweier domain-sortierter States, RRset-Vergleich pro Delegation."""
+    """Merge-diff two domain-sorted states, comparing the RRset per delegation."""
     prev_groups = _by_domain(prev)
     curr_groups = _by_domain(curr)
     a = next(prev_groups, None)

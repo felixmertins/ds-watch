@@ -1,15 +1,15 @@
-"""Streaming-Extraktion von DS-Records aus CZDS-Zonefiles.
+"""Streaming extraction of DS records from CZDS zone files.
 
-CZDS-Format (Base Registry Agreement Spec 4 §2.1.4): eine RR pro Zeile,
-`<fqdn> <ttl> <class> <type> <rdata>`, lowercase, FQDNs, kein $ORIGIN, keine
-Fortsetzungszeilen. Trenner laut Spec ein Tab; wir splitten tolerant auf
-beliebigen Whitespace (eingebettete Sonderzeichen in Labels sind als \\DDD
-escaped und enthalten daher nie Whitespace). Owner bleiben in Presentation-
-Form (inkl. Escapes) — nur lowercase + Trailing-Dot-Strip, damit die
-Normalisierung verlustfrei und über Tage stabil vergleichbar ist.
+CZDS format (Base Registry Agreement Spec 4 §2.1.4): one RR per line,
+`<fqdn> <ttl> <class> <type> <rdata>`, lowercase, FQDNs, no $ORIGIN, no
+continuation lines. The spec mandates tab as the separator; we split
+tolerantly on arbitrary whitespace (special characters embedded in labels
+are escaped as \\DDD and therefore never contain whitespace). Owners stay in
+presentation form (including escapes) — only lowercased plus trailing-dot
+strip, so normalization is lossless and stably comparable across days.
 
-DS-RDATA: `key_tag algorithm digest_type digest`; der Hex-Digest darf in
-Presentation-Form Whitespace enthalten und wird zusammengefügt.
+DS RDATA: `key_tag algorithm digest_type digest`; in presentation form the
+hex digest may contain whitespace and is joined back together.
 """
 
 from __future__ import annotations
@@ -34,23 +34,23 @@ class ExtractResult:
     malformed: int = 0
     soa_serial: str | None = None
     state_sha256: str = ""
-    algorithms: Counter = field(default_factory=Counter)  # pro DS-RR
+    algorithms: Counter = field(default_factory=Counter)  # per DS RR
     digest_types: Counter = field(default_factory=Counter)
-    rrsig_ds: int = 0  # archivierte RRSIG(DS) — die Registry-Signaturen
-    dnskey_rrset: list[str] = field(default_factory=list)  # Apex-DNSKEYs (RDATA)
-    dnskey_rrsigs: list[str] = field(default_factory=list)  # RRSIG(DNSKEY) am Apex
+    rrsig_ds: int = 0  # archived RRSIG(DS) — the registry signatures
+    dnskey_rrset: list[str] = field(default_factory=list)  # apex DNSKEYs (RDATA)
+    dnskey_rrsigs: list[str] = field(default_factory=list)  # RRSIG(DNSKEY) at the apex
 
 
 def extract_ds_state(
     zone_gz: Path, state_out: Path, tld: str, proofs_out: Path | None = None
 ) -> ExtractResult:
-    """Zonefile streamen, DS-RRs normalisieren, sortierten State atomar schreiben.
+    """Stream the zone file, normalize DS RRs, write the sorted state atomically.
 
-    Nimmt zusätzlich die Evidenz mit (RRSIG-Evidenz v0.2): RRSIG(DS) pro
-    Delegation → Proof-Datei (owner-sortiert, "owner\\t<rdata>"), plus das
-    Apex-DNSKEY-RRset samt RRSIG(DNSKEY) für die spätere Verifikation. Die
-    Proofs liegen für .org-Größenordnung einige 100 MB im RAM — auf
-    Laptop/VPS unkritisch, aber der Grund, warum wir nichts davon doppelt halten.
+    Also collects the evidence along the way (RRSIG evidence v0.2): RRSIG(DS)
+    per delegation → proof file (owner-sorted, "owner\\t<rdata>"), plus the
+    apex DNSKEY RRset including RRSIG(DNSKEY) for later verification. At
+    .org scale the proofs take a few hundred MB of RAM — fine on a
+    laptop/VPS, but the reason we never hold any of it twice.
     """
     res = ExtractResult()
     records: list[tuple[str, int, int, int, str]] = []
@@ -126,9 +126,9 @@ def extract_ds_state(
         ptmp.replace(proofs_out)
 
     if res.malformed:
-        log.warning(".%s: %d nicht parsebare DS-Zeilen übersprungen", tld, res.malformed)
+        log.warning(".%s: skipped %d unparseable DS lines", tld, res.malformed)
     log.info(
-        ".%s: %d Zeilen → %d DS-RRs auf %d Delegationen (SOA-Serial %s)",
+        ".%s: %d lines → %d DS RRs across %d delegations (SOA serial %s)",
         tld, res.zone_lines, res.ds_rrs, res.ds_domains, res.soa_serial,
     )
     return res

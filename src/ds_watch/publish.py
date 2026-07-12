@@ -1,7 +1,7 @@
-"""Publikation: Event-JSONL, Tages-Aggregate mit Hash-Kette, Git-Commit.
+"""Publishing: event JSONL, daily aggregates with hash chain, git commit.
 
-Publiziert (committet) werden NUR Diffs und Aggregate — nie volle Snapshots
-oder Roh-Zonendaten (CZDS ToU §1.6, „value-added"-Ausnahme).
+Only diffs and aggregates are published (committed) — never full snapshots
+or raw zone data (CZDS ToU §1.6, "value-added" exemption).
 """
 
 from __future__ import annotations
@@ -47,8 +47,8 @@ def event_json(
         "source": "czds",
         "run_id": run_id,
     }
-    # RRSIG-Evidenz (v0.2): von der Registry signierte Belege für das RRset —
-    # optional, weil Alt-States (v0.1) noch keine Proofs tragen
+    # RRSIG evidence (v0.2): registry-signed proof for the RRset —
+    # optional because legacy states (v0.1) do not carry proofs yet
     if rrsig_before:
         out["rrsig_before"] = rrsig_before
     if rrsig_after:
@@ -59,7 +59,7 @@ def event_json(
 def write_events(
     events_dir: Path, tld: str, date: str, events: Iterable[dict]
 ) -> Path | None:
-    """Events als JSONL nach events/<tld>/<jahr>/<datum>.jsonl; None wenn leer."""
+    """Write events as JSONL to events/<tld>/<year>/<date>.jsonl; None if empty."""
     events = list(events)
     if not events:
         return None
@@ -77,10 +77,10 @@ def write_events(
 def write_dnskey(events_dir: Path, tld: str, date: str,
                  dnskey_rrset: list[str], dnskey_rrsigs: list[str],
                  soa_serial: str | None) -> Path | None:
-    """Tages-DNSKEY-Paket der Elternzone für die Langzeit-Verifikation der RRSIGs.
+    """Parent zone's daily DNSKEY bundle for long-term verification of the RRSIGs.
 
-    Wenige KB pro Tag; ohne den damaligen DNSKEY ließe sich eine alte RRSIG(DS)
-    später nicht mehr prüfen.
+    A few KB per day; without the DNSKEY from that day, an old RRSIG(DS)
+    could not be verified later.
     """
     if not dnskey_rrset:
         return None
@@ -116,7 +116,7 @@ def _previous_stats(stats_dir: Path, tld: str, date: str) -> Path | None:
 
 
 def write_stats(stats_dir: Path, tld: str, date: str, payload: dict) -> Path:
-    """Tages-Aggregat schreiben; verkettet per SHA-256 mit dem Vortages-Aggregat."""
+    """Write the daily aggregate; chained via SHA-256 to the previous day's aggregate."""
     prev = _previous_stats(stats_dir, tld, date)
     payload = {
         "v": SCHEMA_VERSION,
@@ -142,16 +142,16 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def git_commit(root: Path, paths: list[Path], message: str, sign: str | bool) -> bool:
-    """Events/Stats stagen und committen. True, wenn ein Commit entstand."""
+    """Stage and commit events/stats. True if a commit was created."""
     existing = [str(p) for p in paths if p.exists()]
     if not existing:
         return False
     add = _git(root, "add", "--", *existing)
     if add.returncode != 0:
-        log.error("git add fehlgeschlagen: %s", add.stderr.strip())
+        log.error("git add failed: %s", add.stderr.strip())
         return False
     if _git(root, "diff", "--cached", "--quiet").returncode == 0:
-        log.info("Keine Änderungen zu committen")
+        log.info("No changes to commit")
         return False
 
     if sign == "auto":
@@ -159,7 +159,7 @@ def git_commit(root: Path, paths: list[Path], message: str, sign: str | bool) ->
     args = ["commit", "-m", message] + (["-S"] if sign else [])
     commit = _git(root, *args)
     if commit.returncode != 0:
-        log.error("git commit fehlgeschlagen: %s", (commit.stderr or commit.stdout).strip())
+        log.error("git commit failed: %s", (commit.stderr or commit.stdout).strip())
         return False
-    log.info("Commit erstellt%s: %s", " (signiert)" if sign else "", message)
+    log.info("Commit created%s: %s", " (signed)" if sign else "", message)
     return True

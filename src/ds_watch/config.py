@@ -1,4 +1,4 @@
-"""Konfigurations- und Credentials-Laden (TOML, stdlib tomllib)."""
+"""Config and credentials loading (TOML, stdlib tomllib)."""
 
 from __future__ import annotations
 
@@ -13,13 +13,13 @@ class ConfigError(Exception):
 
 @dataclass(frozen=True)
 class AlertConfig:
-    to: str  # leer = Alerting aus
+    to: str  # empty = alerting disabled
     sender: str
     smtp_host: str
     smtp_port: int
-    starttls: bool
-    credentials_file: Path | None  # optional: TOML mit smtp_user/smtp_password
-    on_attention: bool  # auch bei Quarantäne/403/409 mailen
+    tls: str  # "none" | "starttls" (usually port 587) | "ssl" (implicit TLS, usually port 465)
+    credentials_file: Path | None  # optional: TOML with smtp_user/smtp_password
+    on_attention: bool  # also mail on quarantine/403/409
 
     @property
     def enabled(self) -> bool:
@@ -28,7 +28,7 @@ class AlertConfig:
 
 @dataclass(frozen=True)
 class Config:
-    root: Path  # Verzeichnis der config.toml = Repo-Root
+    root: Path  # directory of config.toml = repo root
     tlds: list[str]
     credentials_file: Path
     auth_url: str
@@ -55,7 +55,7 @@ def load_config(path: Path) -> Config:
     path = path.expanduser().resolve()
     if not path.is_file():
         raise ConfigError(
-            f"Konfigurationsdatei fehlt: {path} — config.example.toml nach config.toml kopieren"
+            f"Config file missing: {path} — copy config.example.toml to config.toml"
         )
     with path.open("rb") as f:
         raw = tomllib.load(f)
@@ -68,9 +68,16 @@ def load_config(path: Path) -> Config:
     watchlist = raw.get("watchlist", {})
     alert = raw.get("alert", {})
 
+    # legacy key: starttls = true/false (pre-tls configs keep working)
+    alert_tls = str(
+        alert.get("tls", "starttls" if alert.get("starttls") else "none")
+    ).lower()
+    if alert_tls not in ("none", "starttls", "ssl"):
+        raise ConfigError('[alert] tls must be "none", "starttls", or "ssl"')
+
     tlds = [t.strip(".").lower() for t in raw.get("tlds", [])]
     if not tlds:
-        raise ConfigError("Keine TLDs konfiguriert (Schlüssel `tlds`)")
+        raise ConfigError("No TLDs configured (key `tlds`)")
 
     return Config(
         root=root,
@@ -80,7 +87,7 @@ def load_config(path: Path) -> Config:
         ).expanduser(),
         auth_url=czds.get("auth_url", "https://account-api.icann.org/api/authenticate"),
         api_base=czds.get("api_base", "https://czds-api.icann.org").rstrip("/"),
-        user_agent=czds.get("user_agent", "ds-watch/0.1"),
+        user_agent=czds.get("user_agent", "ds-watch/0.2"),
         min_fetch_interval_hours=float(czds.get("min_fetch_interval_hours", 20)),
         state_dir=_resolve(root, paths.get("state_dir", "state")),
         events_dir=_resolve(root, paths.get("events_dir", "events")),
@@ -95,7 +102,7 @@ def load_config(path: Path) -> Config:
             sender=alert.get("from", "ds-watch@localhost"),
             smtp_host=alert.get("smtp_host", "localhost"),
             smtp_port=int(alert.get("smtp_port", 25)),
-            starttls=bool(alert.get("starttls", False)),
+            tls=alert_tls,
             credentials_file=(
                 Path(alert["credentials_file"]).expanduser()
                 if alert.get("credentials_file") else None
@@ -108,18 +115,18 @@ def load_config(path: Path) -> Config:
 def load_credentials(path: Path) -> tuple[str, str]:
     if not path.is_file():
         raise ConfigError(
-            f"Credentials-Datei fehlt: {path}\n"
-            'Erwartetes Format (TOML):\n  username = "..."\n  password = "..."\n'
-            f"Anlegen mit chmod 600."
+            f"Credentials file missing: {path}\n"
+            'Expected format (TOML):\n  username = "..."\n  password = "..."\n'
+            f"Create it with chmod 600."
         )
     mode = path.stat().st_mode & 0o777
     if mode & 0o077:
         raise ConfigError(
-            f"{path} ist für Gruppe/Andere lesbar (Modus {oct(mode)}) — bitte chmod 600"
+            f"{path} is readable by group/others (mode {oct(mode)}) — please chmod 600"
         )
     with path.open("rb") as f:
         creds = tomllib.load(f)
     try:
         return creds["username"], creds["password"]
     except KeyError as e:
-        raise ConfigError(f"Credentials-Datei ohne Schlüssel {e}") from None
+        raise ConfigError(f"Credentials file missing key {e}") from None
