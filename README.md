@@ -165,4 +165,6 @@ for `ds_removed`.
 
 ## License
 
-Apache-2.0
+Felix Mertins Open Software License (FMOS) v1.0 — see [LICENSE](LICENSE).
+A visible, current [Contributors.md](Contributors.md) ships with every
+distribution (LICENSE §2.2).
