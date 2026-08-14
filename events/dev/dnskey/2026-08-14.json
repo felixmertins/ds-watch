@@ -1,0 +1,13 @@
+{
+  "date": "2026-08-14",
+  "dnskey": [
+    "256 3 8 AwEAAYZTxb6f+y811WAUtjOPC8G9t7K0rEM1IkUkog7he10fZD67gA/Ae+4EbnNH0wZPPGKiFlunvqrKGjh9ZuNZrWh0t2pB0s32qLvbkvPwKGdaq2dmlsjIuoUan+bcy7+yyfwIPq0Vq+7KkIje+Q03teEZ9voMWTjvTB7le+Xjlv3B",
+    "257 3 8 AwEAAYtM84o4wEWfgE0ywuvg89cB3uHoH705EtMkp4Xp32KSJNVPwQ9YNYc4TXoNd++9maW1QNu6n7zcpxRRPstCVGqEFsNVeJBurJGytLctzCK1MwiDAgq+t50h0FSpIw8kzroueTNWRKqQRXwp2CUjQMPvw/BWFgCXJVrbiypFXjWrRCKZJC8peLkRDhfEIxUc5iu4ar8eQnEjZeH8uvr2OcUfaz07BT9+7DnkAqpsg9ozccR4OQWmqmsd0w1O3Sjc3XkkLlmDMCLszwqkbPinzwSKwsDlk8SPNb79B7lcrTd0x3ja4hk403dgHpq1LpUOId21TNRHmKxJLZ7lTaIfya8="
+  ],
+  "rrsig": [
+    "DNSKEY 8 1 300 20260901212506 20260810212506 60074 dev. L1lqF0spWIFisxwpGP4nvozIWaCVDHs9oGmtD4H6xuGdrKAIyX46eKLQf/rUSVWQeS+Y2lrgawhktiawgvyKbfEOxmS/NWhL9+luCWif9/6DoO/Sq/8jdYdDGmzItyzpAaHA8N/XgaLHaEwuk9mXI1vI92Q53odPFUGPnDVf8oAwFW7SJni08LtjbEBiAvzIidHUvJMiJifcdR8121mlzMH7Cggrl/EVPmJtzm7/gpGm5Hy7qURaka6sZFm1o7dsk0pEbQI9WrBnWa2GXSJG+EXdx0AtjigyGfokhYiH1gdHBoZHohOMKwsFlYU2eokLZo8xy4qdX/7cfL2SDljSSw=="
+  ],
+  "soa_serial": "2026081310",
+  "tld": "dev",
+  "v": 1
+}
