@@ -1,0 +1,41 @@
+{
+  "algorithms": {
+    "1": 3,
+    "10": 1328,
+    "12": 1,
+    "13": 175457,
+    "14": 1368,
+    "15": 5681,
+    "16": 1,
+    "2": 2,
+    "3": 2,
+    "5": 109,
+    "7": 925,
+    "8": 71237
+  },
+  "baseline": false,
+  "date": "2026-08-28",
+  "digest_types": {
+    "1": 8151,
+    "2": 242068,
+    "3": 1,
+    "4": 5894
+  },
+  "ds_domains": 245747,
+  "ds_rrs": 256114,
+  "events": {
+    "ds_added": 906,
+    "ds_changed": 61,
+    "ds_removed": 957
+  },
+  "gap_days": 1,
+  "malformed": 0,
+  "prev_stats": {
+    "file": "info/2026-08-27.json",
+    "sha256": "7f507326b05c75a7cdeae627f8d2af5befedc18ec0810e130d958e082504b068"
+  },
+  "soa_serial": "1787875055",
+  "tld": "info",
+  "v": 1,
+  "zone_lines": 14168762
+}
